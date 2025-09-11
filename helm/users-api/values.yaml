@@ -1,0 +1,53 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/faizan00parvez/users-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: users.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+
+securityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "prod"
+  - name: S3_BUCKET
+    value: "devops-portfolio-artifacts"
+  - name: DYNAMODB_TABLE
+    value: "users"
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  cpu:
+    targetAverageUtilization: 60
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

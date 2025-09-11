@@ -1,0 +1,106 @@
+---
+- name: Ensure prerequisites installed (Debian/Ubuntu)
+  apt:
+    name:
+      - curl
+      - git
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - software-properties-common
+      - unzip
+    update_cache: yes
+  become: yes
+
+- name: Install Docker (script)
+  shell: |
+    if ! command -v docker >/dev/null; then
+      curl -fsSL https://get.docker.com | sh
+      usermod -aG docker {{ ansible_user_id }}
+    fi
+  args:
+    executable: /bin/bash
+  become: yes
+
+- name: Install kind
+  shell: |
+    if ! command -v kind >/dev/null; then
+      curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+      chmod +x /usr/local/bin/kind
+    fi
+  args:
+    executable: /bin/bash
+  become: yes
+
+- name: Install kubectl
+  shell: |
+    if ! command -v kubectl >/dev/null; then
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      rm -f kubectl
+    fi
+  args:
+    executable: /bin/bash
+  become: yes
+
+- name: Install helm
+  shell: |
+    if ! command -v helm >/dev/null; then
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+  args:
+    executable: /bin/bash
+  become: yes
+
+- name: Create kind cluster (with port mappings)
+  shell: kind create cluster --name devops-portfolio --config kind-cluster.yaml --wait 90s || true
+  args:
+    chdir: "{{ playbook_dir }}/.."
+    executable: /bin/bash
+
+- name: Install NGINX Ingress Controller (helm)
+  shell: |
+    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    helm repo update
+    helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+      --namespace ingress-nginx --create-namespace \
+      --set controller.publishService.enabled=true
+  args:
+    executable: /bin/bash
+
+- name: Install Metrics Server
+  shell: |
+    helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+    helm repo update
+    helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
+      --set args="{--kubelet-insecure-tls}"
+  args:
+    executable: /bin/bash
+
+- name: Start LocalStack via docker-compose
+  shell: |
+    docker compose -f docker-compose.localstack.yml up -d
+  args:
+    chdir: "{{ playbook_dir }}/.."
+    executable: /bin/bash
+
+- name: Install Terraform
+  shell: |
+    if ! command -v terraform >/dev/null; then
+      curl -fsSL https://releases.hashicorp.com/terraform/1.9.6/terraform_1.9.6_linux_amd64.zip -o /tmp/terraform.zip
+      unzip -o /tmp/terraform.zip -d /usr/local/bin
+      rm -f /tmp/terraform.zip
+    fi
+  args:
+    executable: /bin/bash
+  become: yes
+
+- name: Terraform init+apply (LocalStack infra)
+  shell: |
+    set -e
+    cd terraform
+    terraform init
+    terraform apply -auto-approve
+  args:
+    chdir: "{{ playbook_dir }}/.."
+    executable: /bin/bash

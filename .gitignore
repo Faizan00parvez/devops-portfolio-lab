@@ -1,0 +1,27 @@
+# General
+.DS_Store
+.env
+*.log
+
+# Java/Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+.settings/
+.classpath
+.project
+.idea/
+*.iml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+override.tf
+override.tf.json
+.terraform.lock.hcl
+
+# Kubernetes
+kubeconfig
